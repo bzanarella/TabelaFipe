@@ -1,12 +1,10 @@
 package br.com.alura.tabelafipe.principal;
 
-import br.com.alura.tabelafipe.model.DadosModelos;
-import br.com.alura.tabelafipe.model.DadosVeiculos;
-import br.com.alura.tabelafipe.service.GetMarcasService;
 import br.com.alura.tabelafipe.model.Dado;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import br.com.alura.tabelafipe.model.Modelos;
+import br.com.alura.tabelafipe.model.Veiculo;
+import br.com.alura.tabelafipe.service.ConsomeAPI;
+import br.com.alura.tabelafipe.service.ConverteDados;
 
 import java.util.List;
 import java.util.Scanner;
@@ -14,72 +12,69 @@ import java.util.Scanner;
 public class Principal {
 
     private static final Scanner scan = new Scanner(System.in);
-    private static final GetMarcasService service = new GetMarcasService();
-    private static final ObjectMapper mapper = new ObjectMapper();
+    private static final ConsomeAPI service = new ConsomeAPI();
+    private static final ConverteDados conversor = new ConverteDados();
 
-    private String urlBase = "https://parallelum.com.br/fipe/api/v1";
+    private static final String URL_BASE = "https://parallelum.com.br/fipe/api/v1";
     private String endereco;
 
-
-
-    public void exibeMenu() throws JsonProcessingException {
-
-
+    public void exibeMenu() {
 
         String menu = """
 
-                Escolha qual tipo de veiculo deseja buscar
+                Escolha qual tipo de veiculo deseja buscar pelo código:
 
-                Carros
-                Motos
-                Caminhoes
+                1 - Carros
+                2 - Motos
+                3 - Caminhoes
                 """;
 
         System.out.println(menu);
         System.out.print("Tipo de veiculo: ");
-
-        String tipoVeiculo = scan.next().toLowerCase();
+        var tipoVeiculo = scan.nextInt();
         scan.nextLine();
 
-
         switch (tipoVeiculo) {
-            case "carros":
-                endereco = urlBase.concat("/carros/marcas");
+            case 1:
+                endereco = URL_BASE.concat("/carros/marcas");
                 break;
-            case "motos":
-                endereco = urlBase.concat("/motos/marcas");
+            case 2:
+                endereco = URL_BASE.concat("/motos/marcas");
                 break;
-            case "caminhoes":
-                endereco = urlBase.concat("/caminhoes/marcas");
+            case 3:
+                endereco = URL_BASE.concat("/caminhoes/marcas");
                 break;
             default:
-                throw new RuntimeException("Opção inválida");
+                throw new RuntimeException("Opção inválida - Encerrando");
         }
 
         System.out.println(endereco);
-        var json = service.getMarcas(endereco);
 
+        var json = service.chamaAPI(endereco);
 
-        List<Dado> dadosMarcas = mapper.readValue(json, new TypeReference<List<Dado>>(){});
-        dadosMarcas.forEach(System.out::println);
+        List<Dado> marcas = conversor.obterListaDaados(json, Dado.class);
+        marcas.forEach(System.out::println);
 
         System.out.print("Digite o código da marca que deja buscar os modelos: ");
-        String codigoMarca = scan.next();
+        var codigoMarca = scan.next();
         scan.nextLine();
 
         endereco = endereco.concat("/%s/modelos".formatted(codigoMarca));
 
         System.out.println(endereco);
-        json = service.getMarcas(endereco);
 
-        DadosModelos dadosModelos = mapper.readValue(json, DadosModelos.class);
-        dadosModelos.modelos().forEach(System.out::println);
+        json = service.chamaAPI(endereco);
+
+        Modelos modelos = conversor.obterDados(json, Modelos.class);
+        modelos.modelos().forEach(System.out::println);
 
         System.out.print("Digite uma parte do nome do veiculo para filtrar: ");
         String parteNome = scan.next();
         scan.nextLine();
 
-        dadosModelos.modelos().stream().filter(dado -> dado.descricao().toUpperCase().contains(parteNome.toUpperCase())).forEach(System.out::println);
+        modelos.modelos().stream()
+                .filter(dado -> dado.descricao().toUpperCase().contains(parteNome.toUpperCase()))
+                .forEach(System.out::println);
 
         System.out.print("Digite o código para buscar os valores: ");
         String codigoModelo = scan.next();
@@ -88,17 +83,14 @@ public class Principal {
         endereco = endereco.concat("/%s/anos".formatted(codigoModelo));
 
         System.out.println(endereco);
-        json = service.getMarcas(endereco);
 
-        List<Dado> anosList = mapper.readValue(json, new TypeReference<List<Dado>>(){});
-        anosList.forEach(System.out::println);
-        anosList.forEach(ano -> {
-            try {
-                var preco = mapper.readValue(service.getMarcas(endereco.concat("/%s".formatted(ano.codigo()))), DadosVeiculos.class);
-                System.out.println(preco);
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
-            }
+        json = service.chamaAPI(endereco);
+
+        List<Dado> anos = conversor.obterListaDaados(json, Dado.class);
+        anos.forEach(System.out::println);
+        anos.forEach(ano -> {
+            var veiculo = conversor.obterDados(service.chamaAPI(endereco.concat("/%s".formatted(ano.codigo()))), Veiculo.class);
+            System.out.println(veiculo);
         });
     }
 }
